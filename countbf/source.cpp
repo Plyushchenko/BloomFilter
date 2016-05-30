@@ -5,6 +5,7 @@
 #include <vector>
 #include <atomic>
 #include <algorithm>
+#define pb push_back
 using namespace std;
 
 const uint64_t size_of_cell = 64;
@@ -31,6 +32,7 @@ void bin(uint64_t x)
 } 
 
 template <class T> uint64_t double_hashing(const T&, uint32_t);
+template <class T> class BFAdaptor;
 
 template <class T>    
 class BloomFilter
@@ -49,6 +51,8 @@ class BloomFilter
 				uint64_t max_counter;
 				atomic <uint64_t> *data;
 				uint64_t (*get_hash)(const T&, uint32_t);
+				bool is_adaptor = false;
+				BFAdaptor <T> adaptor;
 
 				uint64_t get_index(uint64_t x) const
 				{
@@ -95,16 +99,40 @@ class BloomFilter
 					if (get_hash == &double_hashing<T>)
 						cout << "\nWARNING: hash family hasn't been provided!\nUsing double-hashing based on std::hash\n\n";
 				}
+			BloomFilter(uint64_t my_capacity, uint32_t my_bpc, uint32_t my_cpe, BFAdaptor<T> &my_adaptor):
+                bits_per_counter(my_bpc),
+                counters_per_cell(size_of_cell / bits_per_counter),
+                counters_per_element(my_cpe),
+                bits_per_element(bits_per_counter * counters_per_element),
+                number_of_hashes(counters_per_element),
+                mod(my_capacity),
+                length((my_capacity + counters_per_cell - 1) / counters_per_cell),
+                max_counter((1ull << bits_per_counter) - 1),
+                data(new atomic <uint64_t>[length]),
+                is_adaptor(true),
+				adaptor(my_adaptor)
+				{
+                	fill(data, data + length, 0);
+                }
 
 			void insert(const T &value)
 			{
+				cerr << is_adaptor << "\n";
 				for (uint32_t i = 0; i < number_of_hashes; i++)
 				{
-					uint64_t h = get_hash(value, i) % mod;
+					uint64_t h;
+					if (!is_adaptor)
+						h = get_hash(value, i) % mod;
+					else
+					{
+						pair <const void *, size_t> tmp = adaptor(value);
+						h = CityHash64WithSeed((char *)tmp.first, tmp.second, i) % mod;
+					}
 					uint64_t index = get_index(h);				
 					uint32_t offset = get_offset(h);
 					uint64_t new_counter = increment(get_counter(data[index], offset));
 					uint64_t value = data[index];
+					cerr << "h = " << h << "\n";
 					do
 					{
 						if (get_counter(value, offset) == new_counter)
@@ -120,7 +148,15 @@ class BloomFilter
 			{
 				for (uint32_t i = 0; i < number_of_hashes; i++)
 				{
-					uint64_t h = get_hash(value, i) % mod;
+					
+                    uint64_t h;
+                    if (!is_adaptor)
+                        h = get_hash(value, i) % mod;
+                    else
+                    {
+                        pair <const void *, size_t> tmp = adaptor(value);
+                        h = CityHash64WithSeed((char *)tmp.first, tmp.second, i) % mod;
+                    }
 					uint64_t index = get_index(h);				
 					uint32_t offset = get_offset(h);
 					uint64_t new_counter = decrement(get_counter(data[index], offset));
@@ -141,7 +177,16 @@ class BloomFilter
 				uint64_t result = max_counter;
 				for (uint32_t i = 0; i < number_of_hashes; i++)
 				{
-					uint64_t h = get_hash(value, i) % mod;
+
+                    uint64_t h;
+                    if (!is_adaptor)
+                        h = get_hash(value, i) % mod;
+                    else
+                    {
+                    	pair <const void *, size_t> tmp = adaptor(value);
+                        h = CityHash64WithSeed((char *)tmp.first, tmp.second, i) % mod;
+					}
+
    					uint64_t index = get_index(h);				
 					uint32_t offset = get_offset(h);
 					uint64_t counter = get_counter(data[index], offset);
@@ -155,7 +200,7 @@ template <class T>
 uint64_t double_hashing(const T& value, uint32_t i)
 {
 	//hash1 is std::hash and hash2 is just polynom with magic prime numbers
-	return (hash<T>()(value) + 31013 * i * i + 1117711 * i);
+	return (hash<T>()(value) + 31013 * i * i + 1177711 * i);
 }
 
 uint64_t const_test(const char * const &value, uint32_t i)
@@ -168,28 +213,29 @@ uint64_t test(char * const &value, uint32_t i)
 	return CityHash64WithSeed(value, strlen(value), i);
 }
 
+template <class T>
+class BFAdaptor 
+{
+	public:
+		pair <const void *, const size_t> operator()(const T &v) const 
+		{
+			return {v.data(), v.size()};
+		}
+};
+
 int main()
 {
-    freopen("cerr", "w", stderr);
-
-	BloomFilter <string> bf(1e3, 4, 3);
+//    freopen("cerr", "w", stderr);
+	vector <int> v;	
 	for (int i = 0; i < 10; i++)
-		bf.insert("aaaaa");
-	bf.erase("aaaaa");
-	for (int i = 0; i < 5; i++)
-	{
-		string tmp; tmp += char('A' + 3 * i);		
-		bf.insert(tmp);
-	}
-	for (int i = 0; i < 26; i++)
-	{
-		string tmp; tmp += char('A' + i);
-		cout << bf.count(tmp) << " ";
-	}
-	cout << bf.count("aaaaa") << "\n";
-	
-	BloomFilter <char *> bf2(1e3, 4, 3, test);
-	BloomFilter <const char *> bf3(1e3, 4, 3, const_test);
-	
+		v.pb(5 * i * i + 6 * i - 36);
+	for (int x : v) cout << x << " ";
+	BFAdaptor <vector<int> > a;
+//	pair <const void *, const size_t> tmp = a(v);
+	BloomFilter <vector <int> > bf(1e3, 4, 3, a); 
+	bf.insert(v);	
+	cout << bf.count(v) << "\n";
+	bf.erase(v);
+	cout << bf.count(v) << "\n";
 	return 0;
 }
