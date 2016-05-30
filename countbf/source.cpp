@@ -32,6 +32,7 @@ void bin(uint64_t x)
 	cerr << "\n";
 } 
 
+//user should provide an adaptor, if there's no provided hash-family function
 class BFAdaptor
 {
 	public:
@@ -46,6 +47,7 @@ class BFAdaptor
 			return {0, 0};
 		}
 };
+
 
 template <class T>
 uint64_t double_hashing(const T& value, uint32_t i)
@@ -127,7 +129,7 @@ class BloomFilter
 				h = CityHash64WithSeed((char *)tmp.first, tmp.second, i) % mod;
 			index = get_index(h);				
 			offset = get_offset(h);
-			value = data[index];
+			value = data[index].load();
 		}
 
 		void cas_loop(uint64_t &index, uint32_t &offset, uint64_t &value, uint64_t &new_counter)
@@ -137,7 +139,7 @@ class BloomFilter
 				if (get_counter(value, offset) == new_counter)
 					break;
 				if (!(data[index].compare_exchange_weak(value, get_new_value(value, offset, new_counter))))
-					value = data[index];
+					value = data[index].load();
 			}
 			while (1);
 		}
@@ -235,5 +237,19 @@ int main()
 	
 	
 	BloomFilter <char *> bf2(1e3, 4, 3, test);
+	char buf[] = {0, 0, 0, 0, 0};
+	for (int i = 0; i < 5; i++) 
+	{ 
+		buf[i] = char('A' + 3 * i);         
+         bf2.insert(buf); 
+	} 
+	for (int i = 0; i < 5; i++)	buf[i] = 0;
+ 
+    for (int i = 0; i < 5; i++)
+    { 
+		buf[i] = char('A' + 3 * i);
+		cout << bf2.count(buf) << "\n";
+	}
+	 
 	return 0;
 }
