@@ -16,7 +16,7 @@ const uint64_t size_of_cell = 64;
 void bin(uint64_t x)
 {
 	typedef unsigned int ui;
-    vector <bool> ans;
+	vector <bool> ans;
 	for (ui i = 0; i < size_of_cell; i++)
 	{
 		ans.push_back(x % 2);
@@ -25,7 +25,7 @@ void bin(uint64_t x)
 	reverse(ans.begin(), ans.end());
 	for (ui i = 0; i < ans.size(); i++)
 	{
-	    if (!(i % 4))
+		if (!(i % 4))
 			cerr << "|";
 		cerr << ans[i];
 	}
@@ -41,13 +41,14 @@ class BFAdaptor
 //	        cerr << "HERE\n";
             return {v.data(), v.size()};
         }
-        template <class T> pair <const void *, const size_t> operator()(const T	&v) const
+		
+		//this is smth like default adaptor
+        template <class T> pair <const void *, const size_t> operator()(const T	&v) const 
 		{
 			//just to make it compile
 			return {0, 0};
 		}
 };
-
 
 template <class T>
 uint64_t double_hashing(const T& value, uint32_t i)
@@ -69,8 +70,8 @@ class BloomFilter
 		uint64_t
 			capacity,
 			mod,
-			length;
-		uint64_t max_counter;
+			length,
+			max_counter;
 		atomic <uint64_t> *data;
 		uint64_t (*get_hash)(const T&, uint32_t);
 		bool is_adaptor = false;
@@ -121,7 +122,7 @@ class BloomFilter
 			fill(data, data + length, 0);
 		}
 		void init_for_methods(uint32_t i, uint64_t &h, uint64_t &index, uint32_t &offset, 
-							  uint64_t &value, pair <const void *, size_t> &tmp, const T &x)
+						uint64_t &value, pair <const void *, size_t> &tmp, const T &x)
 		{
 			if (!is_adaptor)
 				h = get_hash(x, i) % mod;
@@ -214,11 +215,12 @@ uint64_t test(char * const &value, uint32_t i)
 {
 	return CityHash64WithSeed(value, strlen(value), i);
 }
-
+//simple example of usage
 int main()
 {
-    freopen("cerr", "w", stderr);
+//	freopen("cerr", "w", stderr);
 
+//	user doesn't provide any hash	
 	BloomFilter <string> bf(1e3, 4, 3);
 	for (int i = 0; i < 10; i++)
 		bf.insert("aaaaa");
@@ -236,17 +238,18 @@ int main()
 	cout << bf.count("aaaaa") << "\n";
 	
 	
+	//user provides family of hash function (which is called "test")
 	BloomFilter <char *> bf2(1e3, 4, 3, test);
 	char buf[] = {0, 0, 0, 0, 0};
 	for (int i = 0; i < 5; i++) 
 	{ 
 		buf[i] = char('A' + 3 * i);         
-         bf2.insert(buf); 
+		bf2.insert(buf); 
 	} 
 	for (int i = 0; i < 5; i++)	buf[i] = 0;
  
-    for (int i = 0; i < 5; i++)
-    { 
+	for (int i = 0; i < 5; i++)
+	{ 
 		buf[i] = char('A' + 3 * i);
 		cout << bf2.count(buf) << "\n";
 	}
